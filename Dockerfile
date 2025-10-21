@@ -1,7 +1,9 @@
-FROM node:20-bullseye
+FROM node:20-alpine
 
 WORKDIR /app
 COPY ./backend/ .
+
+RUN apk add --no-cache bash libc6-compat libstdc++
 
 RUN npm install -g wrangler
 RUN npm install
