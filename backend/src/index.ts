@@ -1,29 +1,20 @@
 export interface Env {
-  // Add any environment variables here
+  ALLOWED_ORIGINS: string
 }
 
-// CORS configuration
-const CORS_ALLOWED_ORIGINS = (typeof process !== 'undefined' && process.env?.ALLOWED_ORIGINS) 
-  ? process.env.ALLOWED_ORIGINS.split(',') 
-  : [
-    'http://localhost:3000', 
-    'http://localhost:3001', 
-    'http://localhost:19006', 
-    'https://trenitalia-app.pages.dev',
-    'https://*.trenitalia-app.pages.dev'
-  ];
-
 // Function to generate proper CORS headers
-function getCorsHeaders(origin: string | null): Record<string, string> {
+function getCorsHeaders(origin: string | null, env: Env): Record<string, string> {
   // If no origin is specified (e.g., curl request), allow all
-  if (!origin) {
+  if (!origin || !env.ALLOWED_ORIGINS) {
     return {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
     };
   }
-  
+
+  const CORS_ALLOWED_ORIGINS = env.ALLOWED_ORIGINS.split(',');
+
   // Check if origin is in allowed list
   const isAllowed = CORS_ALLOWED_ORIGINS.some(allowedOrigin => {
     if (allowedOrigin.includes('*')) {
@@ -33,7 +24,7 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
     }
     return origin === allowedOrigin;
   });
-  
+
   if (isAllowed) {
     return {
       "Access-Control-Allow-Origin": origin,
@@ -41,7 +32,7 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
       "Access-Control-Allow-Headers": "Content-Type",
     };
   }
-  
+
   // Origin not in allowed list, return empty headers to block
   return {};
 }
@@ -174,7 +165,7 @@ export default {
       const origin = request.headers.get('Origin');
       return new Response(null, {
         headers: {
-          ...getCorsHeaders(origin),
+          ...getCorsHeaders(origin, env),
         },
       });
     }
@@ -207,10 +198,10 @@ export default {
         // The Trenitalia API should return plain text data in format "STATION NAME|ID\nSTATION NAME|ID"
         // Example: "ROMA TERMINI|S06085\nROMA TIBURTINA|S06084"
         const plainTextResponse = await trenitaliaResponse.text();
-        
+
         // Extract origin from request headers
         const origin = request.headers.get('Origin');
-        const corsHeaders = getCorsHeaders(origin);
+        const corsHeaders = getCorsHeaders(origin, env);
 
         // If response contains HTML with a redirect, it means the API requires additional handling
         if (plainTextResponse.includes("redirect.html") || plainTextResponse.includes("<!DOCTYPE HTML")) {
@@ -256,8 +247,8 @@ export default {
         console.error("Error fetching stations:", error);
         // Extract origin from request headers
         const origin = request.headers.get('Origin');
-        const corsHeaders = getCorsHeaders(origin);
-        
+        const corsHeaders = getCorsHeaders(origin, env);
+
         // Return empty array in case of error, not mock data
         return new Response(JSON.stringify([]), {
           headers: {
@@ -301,10 +292,10 @@ export default {
           // Check content type and handle accordingly
           const contentType = trenitaliaResponse.headers.get("content-type");
           let trainDetailsData;
-          
+
           // Extract origin from request headers
           const origin = request.headers.get('Origin');
-          const corsHeaders = getCorsHeaders(origin);
+          const corsHeaders = getCorsHeaders(origin, env);
 
           if (contentType && contentType.includes("application/json")) {
             trainDetailsData = await trenitaliaResponse.json();
@@ -330,8 +321,8 @@ export default {
         console.error("Error fetching train details:", error);
         // Extract origin from request headers
         const origin = request.headers.get('Origin');
-        const corsHeaders = getCorsHeaders(origin);
-        
+        const corsHeaders = getCorsHeaders(origin, env);
+
         // Return empty object in case of error, not mock data
         return new Response(JSON.stringify({}), {
           headers: {
@@ -355,8 +346,8 @@ export default {
           if (isNaN(standardTimestamp)) {
             // Extract origin from request headers
             const origin = request.headers.get('Origin');
-            const corsHeaders = getCorsHeaders(origin);
-            
+            const corsHeaders = getCorsHeaders(origin, env);
+
             return new Response(JSON.stringify({ error: "Invalid timestamp provided" }), {
               headers: {
                 "Content-Type": "application/json",
@@ -394,10 +385,10 @@ export default {
           // Check content type and handle accordingly
           const contentType = trenitaliaResponse.headers.get("content-type");
           let departuresData;
-          
+
           // Extract origin from request headers (if not already extracted)
           const origin = request.headers.get('Origin');
-          const corsHeaders = getCorsHeaders(origin);
+          const corsHeaders = getCorsHeaders(origin, env);
 
           if (contentType && contentType.includes("application/json")) {
             departuresData = await trenitaliaResponse.json();
@@ -423,8 +414,8 @@ export default {
         console.error("Error fetching station departures:", error);
         // Extract origin from request headers
         const origin = request.headers.get('Origin');
-        const corsHeaders = getCorsHeaders(origin);
-        
+        const corsHeaders = getCorsHeaders(origin, env);
+
         // Return empty array in case of error
         return new Response(JSON.stringify([]), {
           headers: {
@@ -448,8 +439,8 @@ export default {
           if (isNaN(standardTimestamp)) {
             // Extract origin from request headers
             const origin = request.headers.get('Origin');
-            const corsHeaders = getCorsHeaders(origin);
-            
+            const corsHeaders = getCorsHeaders(origin, env);
+
             return new Response(JSON.stringify({ error: "Invalid timestamp provided" }), {
               headers: {
                 "Content-Type": "application/json",
@@ -486,10 +477,10 @@ export default {
           // Check content type and handle accordingly
           const contentType = trenitaliaResponse.headers.get("content-type");
           let arrivalsData;
-          
+
           // Extract origin from request headers
           const origin = request.headers.get('Origin');
-          const corsHeaders = getCorsHeaders(origin);
+          const corsHeaders = getCorsHeaders(origin, env);
 
           if (contentType && contentType.includes("application/json")) {
             arrivalsData = await trenitaliaResponse.json();
@@ -515,8 +506,8 @@ export default {
         console.error("Error fetching station arrivals:", error);
         // Extract origin from request headers
         const origin = request.headers.get('Origin');
-        const corsHeaders = getCorsHeaders(origin);
-        
+        const corsHeaders = getCorsHeaders(origin, env);
+
         // Return empty array in case of error
         return new Response(JSON.stringify([]), {
           headers: {
@@ -529,10 +520,10 @@ export default {
 
     // Extract origin from request headers for default response
     const origin = request.headers.get('Origin');
-    const corsHeaders = getCorsHeaders(origin);
-    
+    const corsHeaders = getCorsHeaders(origin, env);
+
     return new Response("Trenitalia API Proxy", {
-      headers: { 
+      headers: {
         "Content-Type": "text/plain",
         ...corsHeaders,
       },
