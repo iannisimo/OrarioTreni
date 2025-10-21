@@ -1,0 +1,13 @@
+compatibility_date = "2025-10-08"
+name = "trenitalia-api"
+main = "src/index.ts"
+
+[vars]
+# Add any environment variables here
+ALLOWED_ORIGINS = "http://localhost:3000"
+
+[env.production]
+# Production environment variables and settings
+
+[env.staging]
+# Staging environment variables and settings
