@@ -4,7 +4,7 @@ main = "src/index.ts"
 
 [vars]
 # Add any environment variables here
-ALLOWED_ORIGINS = "http://localhost:3000"
+ALLOWED_ORIGINS = "http://localhost:3000,https://orariotreni.pages.dev"
 
 [env.production]
 # Production environment variables and settings
