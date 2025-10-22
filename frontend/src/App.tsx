@@ -551,7 +551,7 @@ function App() {
               cursor: 'pointer',
               textDecoration: 'underline'
             }}
-            onClick={() => window.open('https://github.com/', '_blank')}
+            onClick={() => window.open('https://github.com/iannisimo/orariotreni', '_blank')}
           >
             Github
           </Typography>

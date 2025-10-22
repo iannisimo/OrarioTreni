@@ -7,7 +7,7 @@ echo
 # Check if the backend server is running
 if ! curl -s http://localhost:8787 > /dev/null 2>&1; then
     echo "ERROR: Backend server is not running on http://localhost:8787"
-    echo "Please start the backend server with 'wrangler dev' before running tests"
+    echo "Please start the backend server with 'npm run dev' before running tests"
     exit 1
 fi
 

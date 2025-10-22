@@ -7,7 +7,7 @@ SESSION_NAME="trenitalia"
 tmux kill-session -t $SESSION_NAME 2>/dev/null
 
 # Create a new session, start the backend in the first pane
-tmux new-session -d -s $SESSION_NAME -n backend "cd backend && npx wrangler dev"
+tmux new-session -d -s $SESSION_NAME -n backend "cd backend && npm run dev"
 
 # Split the window and start the frontend in the second pane
 tmux split-window -h -t $SESSION_NAME "cd frontend && npm start"

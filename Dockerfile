@@ -1,13 +1,11 @@
-FROM node:20-alpine
+FROM node:25-alpine
 
 WORKDIR /app
 COPY ./backend/ .
 
-RUN apk add --no-cache bash libc6-compat libstdc++
-
-RUN npm install -g wrangler
 RUN npm install
+RUN npm run build
 
 EXPOSE 8787
-CMD ["wrangler", "dev", "--ip", "0.0.0.0", "--port", "8787"]
+CMD ["npm", "run", "start"]
 
