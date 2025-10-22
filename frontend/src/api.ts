@@ -286,7 +286,7 @@ export async function fetchStations(query: string): Promise<StationAutocompleteR
  * @param timestamp - Date and time for the departure search (in milliseconds)
  * @returns Promise resolving to train departure information
  */
-async function fetchStationDepartures(stationId: string, timestamp: number): Promise<TrainDepartureArrivalResponse[]> {
+export async function fetchStationDepartures(stationId: string, timestamp: number): Promise<TrainDepartureArrivalResponse[]> {
   try {
     const response = await fetch(`${API_BASE}/api/station-departures/${stationId}/${timestamp}`);
 
@@ -308,7 +308,7 @@ async function fetchStationDepartures(stationId: string, timestamp: number): Pro
  * @param timestamp - Date and time for the arrival search (in milliseconds)
  * @returns Promise resolving to train arrival information
  */
-async function fetchStationArrivals(stationId: string, timestamp: number): Promise<TrainDepartureArrivalResponse[]> {
+export async function fetchStationArrivals(stationId: string, timestamp: number): Promise<TrainDepartureArrivalResponse[]> {
   try {
     const response = await fetch(`${API_BASE}/api/station-arrivals/${stationId}/${timestamp}`);
 
@@ -380,45 +380,5 @@ export async function fetchTrainDetails(
         }
       ]
     };
-  }
-}
-
-/**
- *
- * Fetch trains between two stations
- * @param dStationId - ID of the departing station
- * @param aStationId - ID of the arrival station
- * @param timestamp - Date and time for the departing search (in milliseconds)
- * @param nArrivalReqs - Number of requests made to the arrival station, do not specify as of now
- * @return Promise resolving the trains
- */
-export async function fetchTrainsFromTo(
-  dStationId: string,
-  aStationId: string,
-  timestamp: number,
-  nArrivalReqs: number = 2
-): Promise<TrainDepartureArrivalResponse[]> {
-  try {
-    const departures = await fetchStationDepartures(dStationId, timestamp);
-    let arrivals: [string, number][] = [];
-    for (let i = 0; i < nArrivalReqs; i++) {
-      const _arrivals = await fetchStationArrivals(aStationId, timestamp + (7200000 * i));
-      _arrivals.forEach(arrival => {
-        arrivals.push(["" + (arrival.numeroTreno ?? "") + (arrival.partenzaTreno ?? arrival.dataPartenzaTreno ?? arrival.millisDataPartenza ?? ""), arrival.orarioArrivo ?? arrival.orarioArrivoZero ?? 0]);
-      });
-    }
-    const matching = departures.filter((departure) => {
-      const matchingArrival = arrivals.findIndex(arrival => (
-        arrival[0] === "" + (departure.numeroTreno ?? "") + (departure.partenzaTreno ?? departure.dataPartenzaTreno ?? departure.millisDataPartenza ?? "")
-      ));
-      if (matchingArrival === -1) return false;
-      if ((departure.orarioPartenza ?? departure.orarioPartenzaZero ?? 0) >= arrivals[matchingArrival][1]) return false;
-      return true;
-    });
-    console.log(matching)
-    return matching;
-  } catch (error) {
-    console.error('Error fetching trains:', error);
-    return [];
   }
 }
