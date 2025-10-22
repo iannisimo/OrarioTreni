@@ -1,41 +1,47 @@
-export interface Env {
-  ALLOWED_ORIGINS: string
+import express, { Request, Response } from 'express';
+import axios from 'axios';
+import cors from 'cors';
+
+// Define the environment variable interface
+interface Env {
+  ALLOWED_ORIGINS: string;
 }
 
-// Function to generate proper CORS headers
-function getCorsHeaders(origin: string | null, env: Env): Record<string, string> {
-  // If no origin is specified (e.g., curl request), allow all
-  if (!origin || !env.ALLOWED_ORIGINS) {
-    return {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-    };
-  }
+// Get allowed origins from environment variables
+const CORS_ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(',') || ['*'];
 
-  const CORS_ALLOWED_ORIGINS = env.ALLOWED_ORIGINS.split(',');
+// Initialize Express app
+const app = express();
 
-  // Check if origin is in allowed list
-  const isAllowed = CORS_ALLOWED_ORIGINS.some(allowedOrigin => {
-    if (allowedOrigin.includes('*')) {
-      // Handle wildcard origins (e.g., '*.example.com')
-      const regex = new RegExp(allowedOrigin.replace(/\*/g, '.*'));
-      return regex.test(origin);
+// Use the CORS middleware with custom options
+app.use(cors({
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    // If no origin is specified (e.g., curl request), allow all
+    if (!origin || CORS_ALLOWED_ORIGINS.includes('*')) {
+      callback(null, true);
+      return;
     }
-    return origin === allowedOrigin;
-  });
 
-  if (isAllowed) {
-    return {
-      "Access-Control-Allow-Origin": origin,
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-    };
+    // Check if origin is in allowed list
+    const isAllowed = CORS_ALLOWED_ORIGINS.some(allowedOrigin => {
+      if (allowedOrigin.includes('*')) {
+        // Handle wildcard origins (e.g., '*.example.com')
+        const regex = new RegExp(allowedOrigin.replace(/\*/g, '.*'));
+        return regex.test(origin!);
+      }
+      return origin === allowedOrigin;
+    });
+
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
   }
+}));
 
-  // Origin not in allowed list, return empty headers to block
-  return {};
-}
+// Middleware to parse JSON
+app.use(express.json());
 
 // Function to generate the correct Trenitalia API endpoint
 // NEVER TOUCH THIS FUNCTION - This format is the correct one for all Trenitalia API calls
@@ -69,8 +75,8 @@ function convertTimestampFormat(timestamp: number): string {
   // Determine if it's DST for Italy (CEST) or standard time (CET)
   // Calculate the date in Rome's time zone to check if DST is active
   const isDST = () => {
-    const jan = new Date(year, 0, 1);
-    const jul = new Date(year, 6, 1);
+    const jan = new Date(parseInt(year), 0, 1);
+    const jul = new Date(parseInt(year), 6, 1);
     // Use Rome timezone offset 
     const janOffset = new Date(jan.toLocaleString("en-US", { timeZone: "Europe/Rome" })).getTimezoneOffset();
     const julOffset = new Date(jul.toLocaleString("en-US", { timeZone: "Europe/Rome" })).getTimezoneOffset();
@@ -89,27 +95,18 @@ async function getStationId(stationName: string): Promise<string | null> {
   try {
     // Call Trenitalia API for station search using the correct API endpoint
     const apiUrl = buildTrenitaliaApiUrl('autocompletaStazione', stationName);
-    const trenitaliaResponse = await fetch(
-      apiUrl,
-      {
-        method: 'GET',
-        redirect: 'follow', // Follow redirects
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-          "Accept": "*/*",  // Accept any content type as the API returns plain text
-          "Accept-Language": "en-US,en;q=0.9,it;q=0.8",
-          "Referer": "http://www.viaggiatreno.it/"
-        }
-      }
-    );
 
-    if (!trenitaliaResponse.ok) {
-      console.warn(`Trenitalia API returned status: ${trenitaliaResponse.status}`);
-      return null;
-    }
+    const trenitaliaResponse = await axios.get(apiUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "Accept": "*/*",  // Accept any content type as the API returns plain text
+        "Accept-Language": "en-US,en;q=0.9,it;q=0.8",
+        "Referer": "http://www.viaggiatreno.it/"
+      }
+    });
 
     // The Trenitalia API returns plain text data in format "STATION NAME|ID\nSTATION NAME|ID"
-    const plainTextResponse = await trenitaliaResponse.text();
+    const plainTextResponse = trenitaliaResponse.data as string;
 
     // If response contains HTML with a redirect, it means the API requires additional handling
     if (plainTextResponse.includes("redirect.html") || plainTextResponse.includes("<!DOCTYPE HTML")) {
@@ -155,378 +152,207 @@ async function getStationId(stationName: string): Promise<string | null> {
   }
 }
 
-export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const url = new URL(request.url);
+// API endpoint: /api/stations/:query
+app.get('/api/stations/:query', async (req: Request, res: Response) => {
+  try {
+    const query = req.params.query;
 
-    // Handle CORS preflight requests
-    if (request.method === "OPTIONS") {
-      // Extract origin from request headers
-      const origin = request.headers.get('Origin');
-      return new Response(null, {
-        headers: {
-          ...getCorsHeaders(origin, env),
-        },
-      });
-    }
+    // Call Trenitalia API for station search using the correct API endpoint
+    const apiUrl = buildTrenitaliaApiUrl('autocompletaStazione', query);
 
-    // API endpoint: /api/stations/:query
-    if (url.pathname.startsWith("/api/stations/")) {
-      try {
-        const query = url.pathname.split("/")[3];
-
-        // Call Trenitalia API for station search using the correct API endpoint
-        const apiUrl = buildTrenitaliaApiUrl('autocompletaStazione', query);
-        const trenitaliaResponse = await fetch(
-          apiUrl,
-          {
-            method: 'GET',
-            redirect: 'follow', // Follow redirects
-            headers: {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-              "Accept": "*/*",  // Accept any content type as the API returns plain text
-              "Accept-Language": "en-US,en;q=0.9,it;q=0.8",
-              "Referer": "http://www.viaggiatreno.it/"
-            }
-          }
-        );
-
-        if (!trenitaliaResponse.ok) {
-          console.warn(`Trenitalia API returned status: ${trenitaliaResponse.status}`);
-        }
-
-        // The Trenitalia API should return plain text data in format "STATION NAME|ID\nSTATION NAME|ID"
-        // Example: "ROMA TERMINI|S06085\nROMA TIBURTINA|S06084"
-        const plainTextResponse = await trenitaliaResponse.text();
-
-        // Extract origin from request headers
-        const origin = request.headers.get('Origin');
-        const corsHeaders = getCorsHeaders(origin, env);
-
-        // If response contains HTML with a redirect, it means the API requires additional handling
-        if (plainTextResponse.includes("redirect.html") || plainTextResponse.includes("<!DOCTYPE HTML")) {
-          // Return empty array if redirected to HTML page
-          return new Response(JSON.stringify([]), {
-            headers: {
-              "Content-Type": "application/json",
-              ...corsHeaders,
-            },
-          });
-        }
-
-        // Parse the plain text response into JSON
-        if (plainTextResponse) {
-          const lines = plainTextResponse.trim().split("\n");
-          const stations = lines
-            .filter(line => line.trim() !== "")
-            .map(line => {
-              const [name, id] = line.split("|");
-              if (name && id) {
-                return { name: name.trim(), id: id.trim() };
-              }
-              return null;
-            })
-            .filter((station): station is { name: string; id: string } => station !== null);
-
-          return new Response(JSON.stringify(stations), {
-            headers: {
-              "Content-Type": "application/json",
-              ...corsHeaders,
-            },
-          });
-        } else {
-          // Return empty array if no response
-          return new Response(JSON.stringify([]), {
-            headers: {
-              "Content-Type": "application/json",
-              ...corsHeaders,
-            },
-          });
-        }
-      } catch (error) {
-        console.error("Error fetching stations:", error);
-        // Extract origin from request headers
-        const origin = request.headers.get('Origin');
-        const corsHeaders = getCorsHeaders(origin, env);
-
-        // Return empty array in case of error, not mock data
-        return new Response(JSON.stringify([]), {
-          headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders,
-          },
-        });
-      }
-    }
-
-    // API endpoint: /api/train-details/:trainNumber/:departureStationId/:departureDate
-    if (url.pathname.startsWith("/api/train-details/")) {
-      try {
-        const pathParts = url.pathname.split("/");
-        if (pathParts.length === 6) { // [, api, train-details, {trainNumber}, {departureStationId}, {departureDate}]
-          const trainNumber = pathParts[3];
-          const departureStationId = pathParts[4];
-          const departureDate = pathParts[5];
-
-          // Call Trenitalia API for train details using the correct API endpoint
-          // According to QWEN.md: /infomobilita/resteasy/viaggiatreno/andamentoTreno/{codPartenza}/{codTreno}/{dataPartenza}
-          const apiUrl = buildTrenitaliaApiUrl('andamentoTreno', departureStationId, trainNumber, departureDate);
-          const trenitaliaResponse = await fetch(
-            apiUrl,
-            {
-              method: 'GET',
-              redirect: 'follow', // Follow redirects
-              headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-                "Accept": "application/json",
-                "Accept-Language": "en-US,en;q=0.9,it;q=0.8",
-                "Referer": "http://www.viaggiatreno.it/"
-              }
-            }
-          );
-
-          if (!trenitaliaResponse.ok) {
-            console.warn(`Trenitalia API returned status: ${trenitaliaResponse.status}`);
-          }
-
-          // Check content type and handle accordingly
-          const contentType = trenitaliaResponse.headers.get("content-type");
-          let trainDetailsData;
-
-          // Extract origin from request headers
-          const origin = request.headers.get('Origin');
-          const corsHeaders = getCorsHeaders(origin, env);
-
-          if (contentType && contentType.includes("application/json")) {
-            trainDetailsData = await trenitaliaResponse.json();
-          } else {
-            // If not JSON, try to parse as text and return as appropriate structure
-            const textResponse = await trenitaliaResponse.text();
-            try {
-              trainDetailsData = JSON.parse(textResponse);
-            } catch {
-              // If it's not valid JSON, return empty object
-              trainDetailsData = {};
-            }
-          }
-
-          return new Response(JSON.stringify(trainDetailsData), {
-            headers: {
-              "Content-Type": "application/json",
-              ...corsHeaders,
-            },
-          });
-        }
-      } catch (error) {
-        console.error("Error fetching train details:", error);
-        // Extract origin from request headers
-        const origin = request.headers.get('Origin');
-        const corsHeaders = getCorsHeaders(origin, env);
-
-        // Return empty object in case of error, not mock data
-        return new Response(JSON.stringify({}), {
-          headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders,
-          },
-        });
-      }
-    }
-
-    // API endpoint: /api/station-departures/:stationId/:timestamp
-    if (url.pathname.startsWith("/api/station-departures/")) {
-      try {
-        const pathParts = url.pathname.split("/");
-        if (pathParts.length === 5) { // [, api, station-departures, {stationId}, {timestamp}]
-          const stationId = pathParts[3];
-          const timestamp = pathParts[4];
-
-          // Convert standard timestamp to required format
-          const standardTimestamp = Number(timestamp);
-          if (isNaN(standardTimestamp)) {
-            // Extract origin from request headers
-            const origin = request.headers.get('Origin');
-            const corsHeaders = getCorsHeaders(origin, env);
-
-            return new Response(JSON.stringify({ error: "Invalid timestamp provided" }), {
-              headers: {
-                "Content-Type": "application/json",
-                ...corsHeaders,
-              },
-              status: 400,
-            });
-          }
-
-          const formattedDate = convertTimestampFormat(standardTimestamp);
-
-          // Call Trenitalia API for station departures using the correct API endpoint
-          // URL encode the formatted date to handle spaces and special characters
-          // const encodedFormattedDate = encodeURIComponent(formattedDate);
-          const encodedFormattedDate = formattedDate.replaceAll(" ", "%20");
-          const apiUrl = buildTrenitaliaApiUrl('partenze', stationId, encodedFormattedDate);
-          const trenitaliaResponse = await fetch(
-            apiUrl,
-            {
-              method: 'GET',
-              redirect: 'follow', // Follow redirects
-              headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-                "Accept": "application/json",
-                "Accept-Language": "en-US,en;q=0.9,it;q=0.8",
-                "Referer": "http://www.viaggiatreno.it/"
-              }
-            }
-          );
-
-          if (!trenitaliaResponse.ok) {
-            console.warn(`Trenitalia API returned status: ${trenitaliaResponse.status}`);
-          }
-
-          // Check content type and handle accordingly
-          const contentType = trenitaliaResponse.headers.get("content-type");
-          let departuresData;
-
-          // Extract origin from request headers (if not already extracted)
-          const origin = request.headers.get('Origin');
-          const corsHeaders = getCorsHeaders(origin, env);
-
-          if (contentType && contentType.includes("application/json")) {
-            departuresData = await trenitaliaResponse.json();
-          } else {
-            // If not JSON, try to parse as text and return as appropriate structure
-            const textResponse = await trenitaliaResponse.text();
-            try {
-              departuresData = JSON.parse(textResponse);
-            } catch {
-              // If it's not valid JSON, return empty array
-              departuresData = [];
-            }
-          }
-
-          return new Response(JSON.stringify(departuresData), {
-            headers: {
-              "Content-Type": "application/json",
-              ...corsHeaders,
-            },
-          });
-        }
-      } catch (error) {
-        console.error("Error fetching station departures:", error);
-        // Extract origin from request headers
-        const origin = request.headers.get('Origin');
-        const corsHeaders = getCorsHeaders(origin, env);
-
-        // Return empty array in case of error
-        return new Response(JSON.stringify([]), {
-          headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders,
-          },
-        });
-      }
-    }
-
-    // API endpoint: /api/station-arrivals/:stationId/:timestamp
-    if (url.pathname.startsWith("/api/station-arrivals/")) {
-      try {
-        const pathParts = url.pathname.split("/");
-        if (pathParts.length === 5) { // [, api, station-arrivals, {stationId}, {timestamp}]
-          const stationId = pathParts[3];
-          const timestamp = pathParts[4];
-
-          // Convert standard timestamp to required format
-          const standardTimestamp = Number(timestamp);
-          if (isNaN(standardTimestamp)) {
-            // Extract origin from request headers
-            const origin = request.headers.get('Origin');
-            const corsHeaders = getCorsHeaders(origin, env);
-
-            return new Response(JSON.stringify({ error: "Invalid timestamp provided" }), {
-              headers: {
-                "Content-Type": "application/json",
-                ...corsHeaders,
-              },
-              status: 400,
-            });
-          }
-
-          const formattedDate = convertTimestampFormat(standardTimestamp);
-
-          // Call Trenitalia API for station arrivals using the correct API endpoint
-          // URL encode the formatted date to handle spaces and special characters
-          const encodedFormattedDate = encodeURIComponent(formattedDate);
-          const apiUrl = buildTrenitaliaApiUrl('arrivi', stationId, encodedFormattedDate);
-          const trenitaliaResponse = await fetch(
-            apiUrl,
-            {
-              method: 'GET',
-              redirect: 'follow', // Follow redirects
-              headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-                "Accept": "application/json",
-                "Accept-Language": "en-US,en;q=0.9,it;q=0.8",
-                "Referer": "http://www.viaggiatreno.it/"
-              }
-            }
-          );
-
-          if (!trenitaliaResponse.ok) {
-            console.warn(`Trenitalia API returned status: ${trenitaliaResponse.status}`);
-          }
-
-          // Check content type and handle accordingly
-          const contentType = trenitaliaResponse.headers.get("content-type");
-          let arrivalsData;
-
-          // Extract origin from request headers
-          const origin = request.headers.get('Origin');
-          const corsHeaders = getCorsHeaders(origin, env);
-
-          if (contentType && contentType.includes("application/json")) {
-            arrivalsData = await trenitaliaResponse.json();
-          } else {
-            // If not JSON, try to parse as text and return as appropriate structure
-            const textResponse = await trenitaliaResponse.text();
-            try {
-              arrivalsData = JSON.parse(textResponse);
-            } catch {
-              // If it's not valid JSON, return empty array
-              arrivalsData = [];
-            }
-          }
-
-          return new Response(JSON.stringify(arrivalsData), {
-            headers: {
-              "Content-Type": "application/json",
-              ...corsHeaders,
-            },
-          });
-        }
-      } catch (error) {
-        console.error("Error fetching station arrivals:", error);
-        // Extract origin from request headers
-        const origin = request.headers.get('Origin');
-        const corsHeaders = getCorsHeaders(origin, env);
-
-        // Return empty array in case of error
-        return new Response(JSON.stringify([]), {
-          headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders,
-          },
-        });
-      }
-    }
-
-    // Extract origin from request headers for default response
-    const origin = request.headers.get('Origin');
-    const corsHeaders = getCorsHeaders(origin, env);
-
-    return new Response("Trenitalia API Proxy", {
+    const trenitaliaResponse = await axios.get(apiUrl, {
       headers: {
-        "Content-Type": "text/plain",
-        ...corsHeaders,
-      },
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "Accept": "*/*",  // Accept any content type as the API returns plain text
+        "Accept-Language": "en-US,en;q=0.9,it;q=0.8",
+        "Referer": "http://www.viaggiatreno.it/"
+      }
     });
-  },
-};
+
+    // The Trenitalia API should return plain text data in format "STATION NAME|ID\nSTATION NAME|ID"
+    // Example: "ROMA TERMINI|S06085\nROMA TIBURTINA|S06084"
+    const plainTextResponse = trenitaliaResponse.data as string;
+
+    // If response contains HTML with a redirect, it means the API requires additional handling
+    if (plainTextResponse.includes("redirect.html") || plainTextResponse.includes("<!DOCTYPE HTML")) {
+      // Return empty array if redirected to HTML page
+      return res.json([]);
+    }
+
+    // Parse the plain text response into JSON
+    if (plainTextResponse) {
+      const lines = plainTextResponse.trim().split("\n");
+      const stations = lines
+        .filter(line => line.trim() !== "")
+        .map(line => {
+          const [name, id] = line.split("|");
+          if (name && id) {
+            return { name: name.trim(), id: id.trim() };
+          }
+          return null;
+        })
+        .filter((station): station is { name: string; id: string } => station !== null);
+
+      return res.json(stations);
+    } else {
+      // Return empty array if no response
+      return res.json([]);
+    }
+  } catch (error) {
+    console.error("Error fetching stations:", error);
+    // Return empty array in case of error, not mock data
+    return res.json([]);
+  }
+});
+
+// API endpoint: /api/train-details/:trainNumber/:departureStationId/:departureDate
+app.get('/api/train-details/:trainNumber/:departureStationId/:departureDate', async (req: Request, res: Response) => {
+  try {
+    const { trainNumber, departureStationId, departureDate } = req.params;
+
+    // Call Trenitalia API for train details using the correct API endpoint
+    // According to QWEN.md: /infomobilita/resteasy/viaggiatreno/andamentoTreno/{codPartenza}/{codTreno}/{dataPartenza}
+    const apiUrl = buildTrenitaliaApiUrl('andamentoTreno', departureStationId, trainNumber, departureDate);
+
+    const trenitaliaResponse = await axios.get(apiUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "Accept": "application/json",
+        "Accept-Language": "en-US,en;q=0.9,it;q=0.8",
+        "Referer": "http://www.viaggiatreno.it/"
+      }
+    });
+
+    // Parse response based on content type
+    let trainDetailsData;
+    if (trenitaliaResponse.headers['content-type']?.includes('application/json')) {
+      trainDetailsData = trenitaliaResponse.data;
+    } else {
+      // If not JSON, try to parse as text and return as appropriate structure
+      try {
+        trainDetailsData = JSON.parse(trenitaliaResponse.data);
+      } catch {
+        // If it's not valid JSON, return empty object
+        trainDetailsData = {};
+      }
+    }
+
+    return res.json(trainDetailsData);
+  } catch (error) {
+    console.error("Error fetching train details:", error);
+    // Return empty object in case of error, not mock data
+    return res.json({});
+  }
+});
+
+// API endpoint: /api/station-departures/:stationId/:timestamp
+app.get('/api/station-departures/:stationId/:timestamp', async (req: Request, res: Response) => {
+  try {
+    const { stationId, timestamp } = req.params;
+
+    // Convert standard timestamp to required format
+    const standardTimestamp = Number(timestamp);
+    if (isNaN(standardTimestamp)) {
+      return res.status(400).json({ error: "Invalid timestamp provided" });
+    }
+
+    const formattedDate = convertTimestampFormat(standardTimestamp);
+
+    // Call Trenitalia API for station departures using the correct API endpoint
+    // URL encode the formatted date to handle spaces and special characters
+    const encodedFormattedDate = encodeURIComponent(formattedDate);
+    const apiUrl = buildTrenitaliaApiUrl('partenze', stationId, encodedFormattedDate);
+
+    const trenitaliaResponse = await axios.get(apiUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "Accept": "application/json",
+        "Accept-Language": "en-US,en;q=0.9,it;q=0.8",
+        "Referer": "http://www.viaggiatreno.it/"
+      }
+    });
+
+    // Parse response based on content type
+    let departuresData;
+    if (trenitaliaResponse.headers['content-type']?.includes('application/json')) {
+      departuresData = trenitaliaResponse.data;
+    } else {
+      // If not JSON, try to parse as text and return as appropriate structure
+      try {
+        departuresData = JSON.parse(trenitaliaResponse.data);
+      } catch {
+        // If it's not valid JSON, return empty array
+        departuresData = [];
+      }
+    }
+
+    return res.json(departuresData);
+  } catch (error) {
+    console.error("Error fetching station departures:", error);
+    // Return empty array in case of error
+    return res.json([]);
+  }
+});
+
+// API endpoint: /api/station-arrivals/:stationId/:timestamp
+app.get('/api/station-arrivals/:stationId/:timestamp', async (req: Request, res: Response) => {
+  try {
+    const { stationId, timestamp } = req.params;
+
+    // Convert standard timestamp to required format
+    const standardTimestamp = Number(timestamp);
+    if (isNaN(standardTimestamp)) {
+      return res.status(400).json({ error: "Invalid timestamp provided" });
+    }
+
+    const formattedDate = convertTimestampFormat(standardTimestamp);
+
+    // Call Trenitalia API for station arrivals using the correct API endpoint
+    // URL encode the formatted date to handle spaces and special characters
+    const encodedFormattedDate = encodeURIComponent(formattedDate);
+    const apiUrl = buildTrenitaliaApiUrl('arrivi', stationId, encodedFormattedDate);
+
+    const trenitaliaResponse = await axios.get(apiUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "Accept": "application/json",
+        "Accept-Language": "en-US,en;q=0.9,it;q=0.8",
+        "Referer": "http://www.viaggiatreno.it/"
+      }
+    });
+
+    // Parse response based on content type
+    let arrivalsData;
+    if (trenitaliaResponse.headers['content-type']?.includes('application/json')) {
+      arrivalsData = trenitaliaResponse.data;
+    } else {
+      // If not JSON, try to parse as text and return as appropriate structure
+      try {
+        arrivalsData = JSON.parse(trenitaliaResponse.data);
+      } catch {
+        // If it's not valid JSON, return empty array
+        arrivalsData = [];
+      }
+    }
+
+    return res.json(arrivalsData);
+  } catch (error) {
+    console.error("Error fetching station arrivals:", error);
+    // Return empty array in case of error
+    return res.json([]);
+  }
+});
+
+// Default route
+app.get('/', (req: Request, res: Response) => {
+  res.send("Trenitalia API Proxy");
+});
+
+// Get port from environment variable or default to 8787
+const PORT = process.env.PORT || 8787;
+
+app.listen(PORT, () => {
+  console.log(`Trenitalia API Proxy server running on port ${PORT}; ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}`);
+});
+
+export default app;
