@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Autocomplete, TextField, Box, Container, FormControl, Button, Stack, Card, CardContent, Typography, CircularProgress, Alert } from '@mui/material';
+import { Autocomplete, TextField, Box, Container, FormControl, Button, Stack, Card, CardContent, Typography, CircularProgress, Alert, Chip, Grid } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { createTheme } from '@mui/material/styles';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
@@ -12,6 +12,13 @@ import {
   , fetchTrainDetails, StationAutocompleteResponse, TrainDepartureArrivalResponse
 } from './api';
 import { ThemeProvider } from '@emotion/react';
+
+interface SearchHistory {
+  from: string,
+  to: string
+  fromId: string,
+  toId: string
+};
 
 function App() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -33,6 +40,15 @@ function App() {
   const [trainDetails, setTrainDetails] = useState<Record<string, any>>({});
   const [trainDetailsLoading, setTrainDetailsLoading] = useState<Record<string, boolean>>({});
   const [nextIncrementalSearch, setNextIncrementalSearch] = useState<number>(0);
+  const [searchHistory, setSearchHistory] = useState<SearchHistory[]>(() => {
+    const ls = window.localStorage.getItem("SEARCH_HISTORY");
+    if (!ls) return [];
+    try {
+      return JSON.parse(ls);
+    } catch {
+      return [];
+    }
+  });
 
   const theme = createTheme({
     palette: {
@@ -42,6 +58,21 @@ function App() {
       },
     }
   })
+
+  const addSearchHistory = (search: SearchHistory) => {
+    setSearchHistory((prev) => {
+      if (!prev.some(p => (p.from === search.from && p.to === search.to && p.fromId === search.fromId && p.toId === search.toId))) {
+        const next = [...prev, search]
+        window.localStorage.setItem("SEARCH_HISTORY", JSON.stringify(next));
+        return next;
+      }
+      return prev;
+    })
+  }
+
+  const delSearchHistory = (search: SearchHistory) => {
+    setSearchHistory((prev) => (prev.filter(p => p !== search)));
+  }
 
   // Initialize stations from URL parameters when component loads
   useEffect(() => {
@@ -81,9 +112,11 @@ function App() {
     }
   }, [searchParams]);
 
-  const handleSearch = async (updateUrl = true, incrementalSearch = false) => {
+  const handleSearch = async (updateUrl = true, incrementalSearch = false, _selectedDeparture: StationAutocompleteResponse | null = null, _selectedArrival: StationAutocompleteResponse | null = null) => {
+    if (!_selectedDeparture) _selectedDeparture = selectedDeparture;
+    if (!_selectedArrival) _selectedArrival = selectedArrival;
     // Validate that both stations are selected
-    if (!selectedDeparture || !selectedArrival) {
+    if (!_selectedDeparture || !_selectedArrival) {
       alert('Please select both departure and arrival stations.');
       return;
     }
@@ -93,12 +126,14 @@ function App() {
       return;
     }
 
+    addSearchHistory({ from: _selectedDeparture.name, to: _selectedArrival.name, fromId: _selectedDeparture.id, toId: _selectedArrival.id });
+
     // Update URL parameters with selected stations only if not auto-searching
     if (updateUrl) {
       setSearchParams(prev => {
         const newParams = new URLSearchParams(prev);
-        newParams.set('da', selectedDeparture.name);
-        newParams.set('a', selectedArrival.name);
+        newParams.set('da', _selectedDeparture?.name || '');
+        newParams.set('a', _selectedArrival?.name || '');
         return newParams;
       });
     }
@@ -115,8 +150,8 @@ function App() {
       // Convert the selected date time to timestamp in milliseconds
       const timestamp = selectedDateTime.valueOf();
 
-      const departures = await fetchStationDepartures(selectedDeparture.id, timestamp + (7200000 * _incrementalSearch));
-      const arrivals = await fetchStationArrivals(selectedArrival.id, timestamp + (7200000 * _incrementalSearch));
+      const departures = await fetchStationDepartures(_selectedDeparture.id, timestamp + (7200000 * _incrementalSearch));
+      const arrivals = await fetchStationArrivals(_selectedArrival.id, timestamp + (7200000 * _incrementalSearch));
 
       let _trainDepartures: TrainDepartureArrivalResponse[] = incrementalSearch ? [...trainDepartures, ...departures] : departures;
       let _trainArrivals: TrainDepartureArrivalResponse[] = incrementalSearch ? [...trainArrivals, ...arrivals] : arrivals;
@@ -205,6 +240,21 @@ function App() {
     <ThemeProvider theme={theme}>
       <Container maxWidth="sm" sx={{ mt: 4 }}>
         <Box sx={{ bgcolor: 'background.paper', p: 3, borderRadius: 2, boxShadow: 3 }}>
+          <Grid container spacing={1}>
+            {searchHistory.map((search, index) => (
+              <Chip
+                key={`${search.fromId}-${search.toId}`}
+                label={`${search.from} - ${search.to}`}
+                size={'small'}
+                onClick={() => {
+                  setSelectedDeparture({ id: search.fromId, name: search.from })
+                  setSelectedArrival({ id: search.toId, name: search.to })
+                  handleSearch(false, false, { id: search.fromId, name: search.from }, { id: search.toId, name: search.to });
+                }}
+                onDelete={() => { delSearchHistory(search) }}
+              />
+            ))}
+          </Grid>
           <FormControl fullWidth margin="normal">
             <Autocomplete
               disablePortal
