@@ -95,7 +95,7 @@ async function getStationId(stationName: string): Promise<string | null> {
   try {
     // Call Trenitalia API for station search using the correct API endpoint
     const apiUrl = buildTrenitaliaApiUrl('autocompletaStazione', stationName);
-    
+
     const trenitaliaResponse = await axios.get(apiUrl, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
@@ -159,7 +159,7 @@ app.get('/api/stations/:query', async (req: Request, res: Response) => {
 
     // Call Trenitalia API for station search using the correct API endpoint
     const apiUrl = buildTrenitaliaApiUrl('autocompletaStazione', query);
-    
+
     const trenitaliaResponse = await axios.get(apiUrl, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
@@ -213,7 +213,7 @@ app.get('/api/train-details/:trainNumber/:departureStationId/:departureDate', as
     // Call Trenitalia API for train details using the correct API endpoint
     // According to QWEN.md: /infomobilita/resteasy/viaggiatreno/andamentoTreno/{codPartenza}/{codTreno}/{dataPartenza}
     const apiUrl = buildTrenitaliaApiUrl('andamentoTreno', departureStationId, trainNumber, departureDate);
-    
+
     const trenitaliaResponse = await axios.get(apiUrl, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
@@ -262,7 +262,7 @@ app.get('/api/station-departures/:stationId/:timestamp', async (req: Request, re
     // URL encode the formatted date to handle spaces and special characters
     const encodedFormattedDate = encodeURIComponent(formattedDate);
     const apiUrl = buildTrenitaliaApiUrl('partenze', stationId, encodedFormattedDate);
-    
+
     const trenitaliaResponse = await axios.get(apiUrl, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
@@ -311,7 +311,7 @@ app.get('/api/station-arrivals/:stationId/:timestamp', async (req: Request, res:
     // URL encode the formatted date to handle spaces and special characters
     const encodedFormattedDate = encodeURIComponent(formattedDate);
     const apiUrl = buildTrenitaliaApiUrl('arrivi', stationId, encodedFormattedDate);
-    
+
     const trenitaliaResponse = await axios.get(apiUrl, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
@@ -352,7 +352,7 @@ app.get('/', (req: Request, res: Response) => {
 const PORT = process.env.PORT || 8787;
 
 app.listen(PORT, () => {
-  console.log(`Trenitalia API Proxy server running on port ${PORT}`);
+  console.log(`Trenitalia API Proxy server running on port ${PORT}; ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}`);
 });
 
 export default app;
