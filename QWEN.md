@@ -45,11 +45,11 @@ You will be able to check your work with puppeteer, use it to navigate the gui
 ## 5. Important Implementation Details
 
 ### Backend Architecture
-- The backend is implemented as a Cloudflare Worker using the Workers runtime
+- The backend is implemented as an Express.js server
 - It serves as a proxy to bypass CORS restrictions when accessing the Trenitalia API directly from the browser
 - The backend handles the following API endpoints:
   - `/api/stations/{query}` - for station autocomplete functionality
-  - `/api/trains/{departure}/{destination}` - for finding trains between stations
+  - `/api/train-details/{trainNumber}/{departureStationId}/{departureDate}` - for getting detailed train information
   - `/api/station-departures/{stationId}/{timestamp}` - for getting train departures for a station on a specific date
   - `/api/station-arrivals/{stationId}/{timestamp}` - for getting train arrivals for a station on a specific date
 - The backend properly handles CORS headers allowing cross-origin requests
@@ -62,23 +62,20 @@ You will be able to check your work with puppeteer, use it to navigate the gui
 - Input validation and loading states are properly implemented
 
 ### Development Setup
-- Backend: Cloudflare Worker running on port 8787 via `wrangler dev`
-- Frontend: React application running on port 3001 to avoid conflicts
+- Backend: Express.js server running on port 8787
+- Frontend: React application running on port 3000
 - The application is currently configured to work with local development services
 
 ### API Handling
-- The backend implements fallback mock data when the Trenitalia API is unavailable
+- The backend implements fallback mechanisms when the Trenitalia API is unavailable
 - CORS issues are properly handled through the proxy backend
 - Request headers are properly set to mimic browser requests to the Trenitalia API
 - The Trenitalia station autocomplete API returns plain text data that needs to be parsed into JSON format
 - The station API returns results in format "STATION NAME|ID" which is then converted to JSON format for the frontend
 
-### Today's Work (October 16, 2025)
-- Removed the Express server implementation to eliminate potential discrepancies between local development and production
+### Implementation History
+- Initially developed as a Cloudflare Worker implementation
+- Later changed to Express.js implementation for development and deployment flexibility
 - Added timestamp conversion utility function to convert standard timestamps to required format: `Wed Jan 07 2015 18:58:25 GMT+0100 (ora solare Europa occidentale)`
-- Implemented two new API endpoints:
-  - `/api/station-departures/{stationId}/{timestamp}` - Get train departures for a station on a specific date
-  - `/api/station-arrivals/{stationId}/{timestamp}` - Get train arrivals for a station on a specific date
-- Updated dependencies to remove Express-related packages from the backend
-- Updated documentation to reflect new architecture and endpoints
-- Corrected the API endpoint format to use the proper Trenitalia API structure: `http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/{command}/{...params}` using a dedicated function to ensure consistency
+- Implemented API endpoints for station departures and arrivals
+- Proper error handling and mock data implementation for API failures
