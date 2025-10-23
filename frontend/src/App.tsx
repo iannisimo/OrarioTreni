@@ -468,6 +468,17 @@ function App() {
                                       return (
                                         <Box
                                           key={stopIndex}
+                                          ref={stopIndex === lastDeparted ? ((el: HTMLDivElement) => {
+                                            if (el) {
+                                              setTimeout(() => {
+                                                el.scrollIntoView({
+                                                  behavior: 'smooth',
+                                                  block: 'center'
+                                                });
+                                              }, 100);
+                                            }
+
+                                          }) : null}
                                           sx={{
                                             mb: 1,
                                             p: 1,
