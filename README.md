@@ -12,7 +12,7 @@ Given the unreliable architecture of the Trenitalia API, and the unreliable natu
 ## Architecture
 
 - **Frontend**: React application with TypeScript
-- **Backend**: Cloudflare Worker to proxy requests to Trenitalia API (avoiding CORS issues)
+- **Backend**: Express.js server to proxy requests to Trenitalia API (avoiding CORS issues)
 
 ## Setup Instructions
 
@@ -47,19 +47,22 @@ Given the unreliable architecture of the Trenitalia API, and the unreliable natu
    npm install
    ```
 
-3. Deploy the worker to Cloudflare:
+3. Build the project:
    ```bash
-   npx wrangler deploy
+   npm run build
    ```
 
-4. Update the `REACT_APP_API_BASE` environment variable with your deployed worker URL.
+4. Start the server:
+   ```bash
+   npm start
+   ```
 
 ## Development
 
 To run the backend locally for development, use:
 
 ```bash
-npx wrangler dev
+npm run dev
 ```
 
 ## Features
