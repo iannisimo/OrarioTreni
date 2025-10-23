@@ -454,92 +454,108 @@ function App() {
                               <Typography variant="h6" gutterBottom>
                                 Route Details
                               </Typography>
-                              <Box sx={{ maxHeight: 400, overflowY: 'auto' }}>
 
-                                {
-                                  (() => {
-                                    const lastDeparted = trainDetails[trainId].fermate?.findLastIndex((stop: any, idx: number) => (stop.partenzaReale != null));
+                              {
+                                (() => {
+                                  const lastDeparted = trainDetails[trainId].fermate?.findLastIndex((stop: any, idx: number) => (stop.partenzaReale != null));
 
-                                    return trainDetails[trainId].fermate?.map((stop: any, stopIndex: number) => {
-                                      const isArrived = stop.arrivoReale != null;
-                                      const isDeparted = stopIndex <= lastDeparted;
-                                      const isInStation = isArrived && !isDeparted;
+                                  return (
+                                    <Box
+                                      sx={{ maxHeight: 400, overflowY: 'auto' }}
+                                      ref={(el: HTMLDivElement) => {
+                                        if (el && el.childNodes && lastDeparted > 0) {
+                                          const parentY = (el as HTMLElement).getBoundingClientRect().y
+                                          const childY = (el.childNodes[lastDeparted] as HTMLElement).getBoundingClientRect().y
+                                          const yOff = childY - parentY;
+                                          el.scrollTo({ top: yOff, behavior: 'smooth' })
+                                        }
+                                      }}
+                                    >
+                                      {trainDetails[trainId].fermate?.map((stop: any, stopIndex: number) => {
+                                        const isArrived = stop.arrivoReale != null;
+                                        const isDeparted = stopIndex <= lastDeparted;
+                                        const isInStation = isArrived && !isDeparted;
 
-                                      return (
-                                        <Box
-                                          key={stopIndex}
-                                          ref={stopIndex === lastDeparted ? ((el: HTMLDivElement) => {
-                                            if (el) {
-                                              setTimeout(() => {
-                                                el.scrollIntoView({
-                                                  behavior: 'smooth',
-                                                  block: 'center'
-                                                });
-                                              }, 100);
-                                            }
-
-                                          }) : null}
-                                          sx={{
-                                            mb: 1,
-                                            p: 1,
-                                            border: '1px solid #ccc',
-                                            borderRadius: 1,
-                                            bgcolor: 'lightgray',
-                                            opacity: isDeparted ? 0.7 : 1
-                                          }}
-                                        >
-                                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                            <Typography variant="subtitle2" sx={{ flex: 1 }}>
-                                              {stop.stazione}
-                                            </Typography>
-                                            {isInStation && (
-                                              <svg
-                                                width="20"
-                                                height="20"
-                                                viewBox="0 0 640 640"
-                                                style={{ color: 'gray', marginLeft: '8px' }}
-                                              >
-                                                <path fill="currentColor" d="M128 160C128 107 171 64 224 64L416 64C469 64 512 107 512 160L512 416C512 456.1 487.4 490.5 452.5 504.8L506.4 568.5C515 578.6 513.7 593.8 503.6 602.3C493.5 610.8 478.3 609.6 469.8 599.5L395.8 512L244.5 512L170.5 599.5C161.9 609.6 146.8 610.9 136.7 602.3C126.6 593.7 125.3 578.6 133.9 568.5L187.8 504.8C152.6 490.5 128 456.1 128 416L128 160zM192 192L192 288C192 305.7 206.3 320 224 320L416 320C433.7 320 448 305.7 448 288L448 192C448 174.3 433.7 160 416 160L224 160C206.3 160 192 174.3 192 192zM320 448C337.7 448 352 433.7 352 416C352 398.3 337.7 384 320 384C302.3 384 288 398.3 288 416C288 433.7 302.3 448 320 448z" />
-                                              </svg>
-                                            )}
-                                          </Box>
-
-                                          <Box>
-                                            <Typography variant="body2">
-                                              <strong>Platform: </strong> {stop.binarioEffettivoPartenzaDescrizione || stop.binarioProgrammatoPartenzaDescrizione || stop.binarioEffettivoArrivoDescrizione || stop.binarioProgrammatoArrivoDescrizione || "N/A"}
-                                            </Typography>
-                                            {stop.arrivo_teorico && (
-                                              <Typography variant="body2">
-                                                <strong>Arrival: </strong> {formatTime(stop.arrivo_teorico) || "-"} {stop.arrivoReale && "(" + formatTime(stop.arrivoReale) + ")"}
+                                        return (
+                                          <Box
+                                            key={stopIndex}
+                                            // ref={stopIndex === lastDeparted ? ((el: HTMLDivElement) => {
+                                            //   if (el) {
+                                            //     setTimeout(() => {
+                                            //       el.scrollIntoView({
+                                            //         behavior: 'smooth',
+                                            //         block: 'center'
+                                            //       });
+                                            //     }, 100);
+                                            //   }
+                                            //
+                                            // }) : null}
+                                            sx={{
+                                              mb: 1,
+                                              p: 1,
+                                              border: '1px solid #ccc',
+                                              borderRadius: 1,
+                                              bgcolor: 'lightgray',
+                                              opacity: isDeparted ? 0.7 : 1
+                                            }}
+                                          >
+                                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                              <Typography variant="subtitle2" sx={{ flex: 1 }}>
+                                                {stop.stazione}
                                               </Typography>
-                                            )}
-                                            {stop.partenza_teorica && (
+                                              {isInStation && (
+                                                <svg
+                                                  width="20"
+                                                  height="20"
+                                                  viewBox="0 0 640 640"
+                                                  style={{ color: 'gray', marginLeft: '8px' }}
+                                                >
+                                                  <path fill="currentColor" d="M128 160C128 107 171 64 224 64L416 64C469 64 512 107 512 160L512 416C512 456.1 487.4 490.5 452.5 504.8L506.4 568.5C515 578.6 513.7 593.8 503.6 602.3C493.5 610.8 478.3 609.6 469.8 599.5L395.8 512L244.5 512L170.5 599.5C161.9 609.6 146.8 610.9 136.7 602.3C126.6 593.7 125.3 578.6 133.9 568.5L187.8 504.8C152.6 490.5 128 456.1 128 416L128 160zM192 192L192 288C192 305.7 206.3 320 224 320L416 320C433.7 320 448 305.7 448 288L448 192C448 174.3 433.7 160 416 160L224 160C206.3 160 192 174.3 192 192zM320 448C337.7 448 352 433.7 352 416C352 398.3 337.7 384 320 384C302.3 384 288 398.3 288 416C288 433.7 302.3 448 320 448z" />
+                                                </svg>
+                                              )}
+                                            </Box>
+
+                                            <Box>
                                               <Typography variant="body2">
-                                                <strong>Departure: </strong> {formatTime(stop.partenza_teorica) || "-"} {stop.partenzaReale && "(" + formatTime(stop.partenzaReale) + ")"}
+                                                <strong>Platform: </strong> {stop.binarioEffettivoPartenzaDescrizione || stop.binarioProgrammatoPartenzaDescrizione || stop.binarioEffettivoArrivoDescrizione || stop.binarioProgrammatoArrivoDescrizione || "N/A"}
                                               </Typography>
-                                            )}
+                                              {stop.arrivo_teorico && (
+                                                <Typography variant="body2">
+                                                  <strong>Arrival: </strong> {formatTime(stop.arrivo_teorico) || "-"} {stop.arrivoReale && "(" + formatTime(stop.arrivoReale) + ")"}
+                                                </Typography>
+                                              )}
+                                              {stop.partenza_teorica && (
+                                                <Typography variant="body2">
+                                                  <strong>Departure: </strong> {formatTime(stop.partenza_teorica) || "-"} {stop.partenzaReale && "(" + formatTime(stop.partenzaReale) + ")"}
+                                                </Typography>
+                                              )}
+                                            </Box>
+
+
+                                            {(((stop.ritardo && stop.ritardo > 0) || (stopIndex === lastDeparted + 1 && train.ritardo && train.ritardo > 0)) && (
+                                              <Typography variant="body2" color="error">
+                                                <strong>Delay: </strong>{stop.ritardo || (stopIndex === lastDeparted + 1 && train.ritardo)} minutes
+                                              </Typography>
+                                            )) || ''}
                                           </Box>
+                                        );
+                                      })
+                                      }
+
+                                    </Box>
+                                  )
+                                  return
+                                })()
+                              }
 
 
-                                          {(((stop.ritardo && stop.ritardo > 0) || (stopIndex === lastDeparted + 1 && train.ritardo && train.ritardo > 0)) && (
-                                            <Typography variant="body2" color="error">
-                                              <strong>Delay: </strong>{stop.ritardo || (stopIndex === lastDeparted + 1 && train.ritardo)} minutes
-                                            </Typography>
-                                          )) || ''}
-                                        </Box>
-                                      );
-                                    })
-                                  })()
-                                }
-
-
-                              </Box>
                             </Box>
                           ) : (
                             <Typography>No detailed information available</Typography>
                           )}
                         </CardContent>
-                      )}
+                      )
+                      }
                     </Card>
                   )
                 })}
@@ -612,8 +628,8 @@ function App() {
             </Typography>
           </Box>
         </Box>
-      </Container>
-    </ThemeProvider>
+      </Container >
+    </ThemeProvider >
   );
 }
 
